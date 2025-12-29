@@ -1,125 +1,91 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>仮想OS — 統合 完全版（Mac風 UI）</title>
+<title>HTML Runner（オフライン対応）</title>
 
 <style>
-/* === 元コードそのまま === */
-:root{
-  --bg:#004080;
-  --win-bg:#fff;
-  --title:#333;
-  --task:#222;
-}
-html,body{height:100%;margin:0;font-family:system-ui,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;}
-body{background:var(--bg);overflow:hidden;color:#111;}
-.desktop{position:absolute;top:0;left:0;right:0;bottom:34px;display:flex;flex-wrap:wrap;padding:12px;gap:10px;box-sizing:border-box;}
-.icon{
-  width:96px;
-  height:72px;
-  background:rgba(255,255,255,0.15);
-  border-radius:10px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+body{
+  margin:0;
+  font-family:system-ui;
+  background:#1e1e1e;
   color:#fff;
-  font-size:14px;
-  cursor:pointer;
-  user-select:none;
 }
-.taskbar{position:absolute;bottom:0;left:0;right:0;height:34px;background:var(--task);display:flex;align-items:center;padding:0 12px;box-sizing:border-box;color:#fff;}
-.task{margin-right:8px;background:#444;padding:4px 8px;border-radius:4px;cursor:pointer;}
-.window{position:absolute;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.45);overflow:hidden;display:none;flex-direction:column;resize:both;}
-.titlebar{height:40px;background:#eee;display:flex;align-items:center;padding:6px 12px;cursor:grab;}
-.mac-controls{display:flex;gap:8px;margin-right:12px;}
-.mac-dot{width:14px;height:14px;border-radius:50%;}
-.mac-dot.close{background:#ff5f57;}
-.mac-dot.min{background:#ffbd2e;}
-.mac-dot.max{background:#28c840;}
-.title-text{flex:1;text-align:center;font-weight:600;}
-.content{padding:10px;overflow:auto;flex:1;}
-.btn{background:#f3f3f3;border:1px solid #ddd;padding:6px 8px;border-radius:6px;cursor:pointer;}
+header{
+  padding:10px;
+  background:#333;
+  display:flex;
+  gap:8px;
+}
+button{
+  padding:6px 10px;
+  border-radius:6px;
+  border:none;
+  cursor:pointer;
+}
+iframe{
+  width:100%;
+  height:calc(100vh - 56px);
+  border:none;
+  background:#fff;
+}
 </style>
 </head>
 
 <body>
-<div class="desktop" id="desktop"></div>
-<div class="taskbar" id="tasks"></div>
-<div id="windows"></div>
+<header>
+  <input type="file" id="fileInput" accept="text/html">
+  <button onclick="runHTML()">実行</button>
+  <span id="status">online</span>
+</header>
+
+<iframe id="viewer"></iframe>
 
 <script>
-/* ====== apps 定義（icon 完全削除） ====== */
-const apps = [
-  { id:'sheetWin', name:'シート', content:'<p>シート</p>' },
-  { id:'editorWin', name:'画像編集', content:'<p>画像編集</p>' },
-  { id:'browserWin', name:'ブラウザ', content:'<p>ブラウザ</p>' },
-  { id:'notepadWin', name:'メモ帳', content:'<textarea style="width:100%;height:90%"></textarea>' },
-  { id:'programWin', name:'Program', content:'<textarea style="width:100%;height:90%"></textarea>' },
-  { id:'trashWin', name:'ゴミ箱', content:'<p>ゴミ箱</p>' }
-];
-
-const desktop = document.getElementById('desktop');
-const windowsContainer = document.getElementById('windows');
-const tasks = document.getElementById('tasks');
-let zIndex = 100;
-
-/* ====== デスクトップ生成 ====== */
-apps.forEach(app=>{
-  const icon = document.createElement('div');
-  icon.className = 'icon';
-  icon.textContent = app.name;
-  icon.onclick = ()=>openWindow(app.id);
-  desktop.appendChild(icon);
-
-  const win = document.createElement('div');
-  win.className = 'window';
-  win.id = app.id;
-  win.style.width = '900px';
-  win.style.height = '600px';
-  win.style.left = '60px';
-  win.style.top = '60px';
-  win.innerHTML = `
-    <div class="titlebar">
-      <div class="mac-controls">
-        <span class="mac-dot close" onclick="closeWindow('${app.id}')"></span>
-        <span class="mac-dot min" onclick="minimizeWindow('${app.id}')"></span>
-        <span class="mac-dot max" onclick="maximizeWindow('${app.id}')"></span>
-      </div>
-      <div class="title-text">${app.name}</div>
-    </div>
-    <div class="content">${app.content}</div>
-  `;
-  windowsContainer.appendChild(win);
-});
-
-/* ====== ウィンドウ操作 ====== */
-function openWindow(id){
-  const w=document.getElementById(id);
-  w.style.display='flex';
-  w.style.zIndex=++zIndex;
-}
-function closeWindow(id){
-  document.getElementById(id).style.display='none';
-}
-function minimizeWindow(id){
-  document.getElementById(id).style.display='none';
-}
-function maximizeWindow(id){
-  const w=document.getElementById(id);
-  w.style.left='10px';
-  w.style.top='10px';
-  w.style.width=(innerWidth-20)+'px';
-  w.style.height=(innerHeight-60)+'px';
-}
-
-/* ====== Service Worker 登録 ====== */
+/* ===== Service Worker 登録 ===== */
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
+
+/* ===== HTML実行 ===== */
+function runHTML(){
+  const f = document.getElementById('fileInput').files[0];
+  if(!f){
+    alert('HTMLファイルを選択してください');
+    return;
+  }
+  const r = new FileReader();
+  r.onload = ()=>{
+    const html = r.result;
+    const blob = new Blob([html], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    document.getElementById('viewer').src = url;
+
+    // オフライン用に保存
+    localStorage.setItem('lastHTML', html);
+  };
+  r.readAsText(f);
+}
+
+/* ===== オフライン復元 ===== */
+window.addEventListener('load', ()=>{
+  const saved = localStorage.getItem('lastHTML');
+  if(saved){
+    const blob = new Blob([saved], {type:'text/html'});
+    document.getElementById('viewer').src = URL.createObjectURL(blob);
+  }
+});
+
+/* ===== 状態表示 ===== */
+function updateStatus(){
+  document.getElementById('status').textContent =
+    navigator.onLine ? 'online' : 'offline';
+}
+window.addEventListener('online', updateStatus);
+window.addEventListener('offline', updateStatus);
+updateStatus();
 </script>
 
 </body>
